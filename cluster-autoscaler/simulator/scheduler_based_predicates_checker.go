@@ -19,6 +19,7 @@ package simulator
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	apiv1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/informers"
@@ -27,6 +28,7 @@ import (
 	klog "k8s.io/klog/v2"
 	scheduler_config "k8s.io/kubernetes/pkg/scheduler/apis/config/latest"
 	schedulerframework "k8s.io/kubernetes/pkg/scheduler/framework"
+	schedulerframeworkv1alpha1 "k8s.io/kubernetes/pkg/scheduler/framework"
 	scheduler_plugins "k8s.io/kubernetes/pkg/scheduler/framework/plugins"
 	schedulerframeworkruntime "k8s.io/kubernetes/pkg/scheduler/framework/runtime"
 )
@@ -108,31 +110,57 @@ func (p *SchedulerBasedPredicateChecker) FitsAnyNodeMatching(clusterSnapshot Clu
 		return "", fmt.Errorf("error running pre filter plugins for pod %s; %s", pod.Name, preFilterStatus.Message())
 	}
 
-	for i := range nodeInfosList {
-		nodeInfo := nodeInfosList[(p.lastIndex+i)%len(nodeInfosList)]
-		if !nodeMatches(nodeInfo) {
-			continue
-		}
-
-		// Be sure that the node is schedulable.
-		if nodeInfo.Node().Spec.Unschedulable {
-			continue
-		}
-
-		filterStatuses := p.framework.RunFilterPlugins(context.TODO(), state, pod, nodeInfo)
-		ok := true
-		for _, filterStatus := range filterStatuses {
-			if !filterStatus.IsSuccess() {
-				ok = false
-				break
-			}
-		}
-		if ok {
-			p.lastIndex = (p.lastIndex + i + 1) % len(nodeInfosList)
-			return nodeInfo.Node().Name, nil
-		}
+	nodeName := p.GetMatchingNode(state, pod, nodeInfosList, nodeMatches)
+	if nodeName != "" {
+		return nodeName, nil
 	}
+
 	return "", fmt.Errorf("cannot put pod %s on any node", pod.Name)
+}
+
+func (p *SchedulerBasedPredicateChecker) GetMatchingNode(state *schedulerframeworkv1alpha1.CycleState, pod *apiv1.Pod, nodeInfosList []*schedulerframework.NodeInfo, nodeMatches func(*schedulerframework.NodeInfo) bool) string {
+	var ret string
+	var wg sync.WaitGroup
+	ctx, cancel := context.WithCancel(context.Background())
+	for i := range nodeInfosList {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				default:
+				}
+				nodeInfo := nodeInfosList[(p.lastIndex+i)%len(nodeInfosList)]
+				if !nodeMatches(nodeInfo) {
+					return
+				}
+
+				// Be sure that the node is schedulable.
+				if nodeInfo.Node().Spec.Unschedulable {
+					return
+				}
+
+				filterStatuses := p.framework.RunFilterPlugins(context.TODO(), state, pod, nodeInfo)
+				ok := true
+				for _, filterStatus := range filterStatuses {
+					if !filterStatus.IsSuccess() {
+						ok = false
+						break
+					}
+				}
+				if ok {
+					p.lastIndex = (p.lastIndex + i + 1) % len(nodeInfosList)
+					ret = nodeInfo.Node().Name
+					cancel()
+				}
+				return
+			}
+		}(i)
+	}
+	wg.Wait()
+	return ret
 }
 
 // CheckPredicates checks if the given pod can be placed on the given node.
