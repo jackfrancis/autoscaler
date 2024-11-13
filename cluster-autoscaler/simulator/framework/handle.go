@@ -22,9 +22,11 @@ import (
 
 	"k8s.io/client-go/informers"
 	"k8s.io/kubernetes/pkg/scheduler/apis/config"
+	schedconfig "k8s.io/kubernetes/pkg/scheduler/apis/config"
 	scheduler_config "k8s.io/kubernetes/pkg/scheduler/apis/config/latest"
 	schedulerframework "k8s.io/kubernetes/pkg/scheduler/framework"
 	scheduler_plugins "k8s.io/kubernetes/pkg/scheduler/framework/plugins"
+	draplugin "k8s.io/kubernetes/pkg/scheduler/framework/plugins/dynamicresources"
 	schedulerframeworkruntime "k8s.io/kubernetes/pkg/scheduler/framework/runtime"
 	schedulermetrics "k8s.io/kubernetes/pkg/scheduler/metrics"
 )
@@ -42,6 +44,7 @@ func NewHandle(informerFactory informers.SharedInformerFactory, schedConfig *con
 			return nil, fmt.Errorf("couldn't create scheduler config: %v", err)
 		}
 	}
+	schedConfig.Profiles[0].Plugins.Reserve.Enabled = append(schedConfig.Profiles[0].Plugins.PreFilter.Enabled, schedconfig.Plugin{Name: draplugin.Name})
 
 	if len(schedConfig.Profiles) != 1 {
 		return nil, fmt.Errorf("unexpected scheduler config: expected one scheduler profile only (found %d profiles)", len(schedConfig.Profiles))
