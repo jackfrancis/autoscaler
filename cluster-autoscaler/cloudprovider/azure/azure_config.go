@@ -143,6 +143,9 @@ type Config struct {
 
 	// EnableVmssFlex defines whether to enable Vmss Flex support or not
 	EnableVmssFlex bool `json:"enableVmssFlex,omitempty" yaml:"enableVmssFlex,omitempty"`
+
+	// StrictCacheUpdates updates cache values only after positive validation from Azure APIs
+	StrictCacheUpdates bool `json:"strictCacheUpdates,omitempty" yaml:"strictCacheUpdates,omitempty"`
 }
 
 // BuildAzureConfig returns a Config object for the Azure clients
@@ -244,6 +247,13 @@ func BuildAzureConfig(configReader io.Reader) (*Config, error) {
 			}
 		}
 
+		if strictCacheUpdates := os.Getenv("AZURE_STRICT_CACHE_UPDATES"); strictCacheUpdates != "" {
+			cfg.StrictCacheUpdates, err = strconv.ParseBool(strictCacheUpdates)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse AZURE_STRICT_CACHE_UPDATES %q: %v", strictCacheUpdates, err)
+			}
+		}
+
 		if enableDynamicInstanceList := os.Getenv("AZURE_ENABLE_DYNAMIC_INSTANCE_LIST"); enableDynamicInstanceList != "" {
 			cfg.EnableDynamicInstanceList, err = strconv.ParseBool(enableDynamicInstanceList)
 			if err != nil {
@@ -341,6 +351,7 @@ func BuildAzureConfig(configReader io.Reader) (*Config, error) {
 	if cfg.MaxDeploymentsCount == 0 {
 		cfg.MaxDeploymentsCount = int64(defaultMaxDeploymentsCount)
 	}
+	cfg.StrictCacheUpdates = false
 
 	if err := cfg.validate(); err != nil {
 		return nil, err
