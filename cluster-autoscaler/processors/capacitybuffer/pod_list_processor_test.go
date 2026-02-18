@@ -24,8 +24,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	apiv1 "k8s.io/autoscaler/cluster-autoscaler/apis/capacitybuffer/autoscaling.x-k8s.io/v1beta1"
+	"k8s.io/autoscaler/cluster-autoscaler/capacitybuffer"
 	"k8s.io/autoscaler/cluster-autoscaler/capacitybuffer/client"
-	"k8s.io/autoscaler/cluster-autoscaler/capacitybuffer/common"
 	"k8s.io/autoscaler/cluster-autoscaler/utils/drain"
 
 	corev1 "k8s.io/api/core/v1"
@@ -89,7 +89,7 @@ func TestPodListProcessor(t *testing.T) {
 			unschedulablePods:            []*corev1.Pod{getTestingPod("Pod")},
 			expectedUnschedPodsCount:     1,
 			expectedUnschedFakePodsCount: 0,
-			expectedBuffersProvCondition: map[string]metav1.Condition{"buffer": {Type: common.ProvisioningCondition, Status: common.ConditionFalse}},
+			expectedBuffersProvCondition: map[string]metav1.Condition{"buffer": {Type: capacitybuffer.ProvisioningCondition, Status: metav1.ConditionFalse}},
 			expectError:                  false,
 		},
 		{
@@ -100,7 +100,7 @@ func TestPodListProcessor(t *testing.T) {
 			forceSafeToEvict:             true,
 			expectedUnschedPodsCount:     2,
 			expectedUnschedFakePodsCount: 1,
-			expectedBuffersProvCondition: map[string]metav1.Condition{"buffer": {Type: common.ProvisioningCondition, Status: common.ConditionTrue}},
+			expectedBuffersProvCondition: map[string]metav1.Condition{"buffer": {Type: capacitybuffer.ProvisioningCondition, Status: metav1.ConditionTrue}},
 			expectError:                  false,
 		},
 		{
@@ -125,8 +125,8 @@ func TestPodListProcessor(t *testing.T) {
 			expectedUnschedPodsCount:     11,
 			expectedUnschedFakePodsCount: 8,
 			expectedBuffersProvCondition: map[string]metav1.Condition{
-				"buffer1": {Type: common.ProvisioningCondition, Status: common.ConditionTrue},
-				"buffer2": {Type: common.ProvisioningCondition, Status: common.ConditionTrue},
+				"buffer1": {Type: capacitybuffer.ProvisioningCondition, Status: metav1.ConditionTrue},
+				"buffer2": {Type: capacitybuffer.ProvisioningCondition, Status: metav1.ConditionTrue},
 			},
 			expectError: false,
 		},
